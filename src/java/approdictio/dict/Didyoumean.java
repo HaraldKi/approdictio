@@ -13,6 +13,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 package approdictio.dict;
 
+import static approdictio.dict.Util.newResultElem;
+import static approdictio.dict.Util.newResultList;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -22,29 +25,32 @@ import java.io.Reader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import approdictio.levenshtein.CostFunctions;
-import approdictio.levenshtein.LevenshteinMetric;
-import static approdictio.dict.Util.*;
+
 /**
  * <p>
  * is an implementation of a <em>did you mean</em> based on a
- * {@link Dictionary}. In addition to similarity lookup &mdash or rather
+ * {@link Dictionary}. In addition to similarity lookup &mdash; or rather
  * distance based approximate lookup &mdash; the list of equal distance
  * results is further weighted and sorted according to a weight available for
- * each dictionary term. The weights can be frequencies of the
- * term occuring in a corpus.
+ * each dictionary term. The weights can be frequencies of the term occuring
+ * in a corpus.
  * </p>
  * <p>
  * To create a {@code Didyoumean}, use one of the factory methods. The
- * backing {@code Dictionary} depends on the facotry method used. While
- * {@link NgramDict} ({@link #instanceNgramDict instanceNgramDict}) seems
- * to be about three times faster (in completely unscientific comparisons),
- * the {@link BKTree} ({@link #instanceBKTree instanceBKTree}) provides a
+ * backing {@code Dictionary} depends on the factory method used. While
+ * {@link NgramDict} ({@link #instanceNgramDict instanceNgramDict}) seems to
+ * be about three times faster (in completely unscientific comparisons), the
+ * {@link BKTree} ({@link #instanceBKTree instanceBKTree}) provides a
  * 100%-Levenshtein implementation for the term distance.
  * </p>
  * 
+ * <p>
+ * <strong>Hint:</strong> Instead of this class, it may be space and possible
+ * more time efficient to use a combination of a {@link BKTree} that is
+ * filled with terms in the order of descending weight and then use a
+ * {@link BKStableLookup} to fetch results.</p>
  */
-public class Didyoumean {
+public final class Didyoumean {
   private final Dictionary<String, Integer> dict;
 
   private final Map<String, Integer> weights;
@@ -61,10 +67,9 @@ public class Didyoumean {
    * </p>
    */
   public static Didyoumean instanceNgramDict(int n,
-                                             IntMetric<String> metric,
-                                             int maxDist)
+                                             IntMetric<String> metric)
   {
-    return new Didyoumean(new NgramDict(n, metric, maxDist));
+    return new Didyoumean(new NgramDict(n, metric));
   }
   /* +***************************************************************** */
   /**
@@ -72,11 +77,9 @@ public class Didyoumean {
    * creates a {@code Didyoumean} backed by a {@link BKTree}.
    * </p>
    */
-  public static Didyoumean instanceBKTree(IntMetric<String> metric,
-                                          int maxDist)
+  public static Didyoumean instanceBKTree(IntMetric<String> metric)
   {
-    final Dictionary<String, Integer> d =
-        new BKTree<String>(metric, maxDist);
+    final Dictionary<String, Integer> d = new BKTree<String>(metric);
     return new Didyoumean(d);
   }
   /* +***************************************************************** */
@@ -92,9 +95,9 @@ public class Didyoumean {
     //System.out.printf("dym add: [%s:%d]%n", term, weight);
     Integer w = weights.get(term);
     if( w != null ) {
-      weights.put(term, new Integer(weight + w.intValue()));
+      weights.put(term, Integer.valueOf(weight + w.intValue()));
     } else {
-      weights.put(term, new Integer(weight));
+      weights.put(term, Integer.valueOf(weight));
       dict.add(term);
     }
   }
@@ -121,9 +124,6 @@ public class Didyoumean {
     Reader r = new InputStreamReader(in, encoding);
     try {
       addFile(r, separator);
-    } catch( FileFormatException e ) {
-      e.printStackTrace();
-      throw new FileFormatException(fname + e.getMessage(), e.getLineNo());
     } finally {
       r.close();
     }
@@ -141,8 +141,11 @@ public class Didyoumean {
     FileFormatException
   {
     BufferedReader bin;
-    if( in instanceof BufferedReader ) bin = (BufferedReader) in;
-    else bin = new BufferedReader(in);
+    if( in instanceof BufferedReader ) {
+      bin = (BufferedReader) in;
+    } else {
+      bin = new BufferedReader(in);
+    }
 
     String splitRe = "[" + separator + "]";
     String line = null;
@@ -180,7 +183,7 @@ public class Didyoumean {
       return Integer.parseInt(weight);
     } catch( NumberFormatException e ) {
       String msg = String.format("cannot convert %s to int", weight);
-      throw new FileFormatException(msg, lineNo);
+      throw new FileFormatException(msg, lineNo, e);
     }
 
   }
@@ -195,8 +198,8 @@ public class Didyoumean {
    * @return the list of stored elements most similar to {@code word} that
    *         have the highest weight assigned.
    */
-  public List<ResultElem<String, Integer>> lookup(String word) {
-    return lookup(word, false);
+  public List<ResultElem<String, Integer>> lookup(String word, Integer maxDist) {
+    return lookup(word, maxDist, false);
   }
   /* +***************************************************************** */
   /**
@@ -205,20 +208,22 @@ public class Didyoumean {
    * even if it is in the dictionary.
    * </p>
    */
-  public List<ResultElem<String,Integer>> lookupDistinct(String word) {
-    return lookup(word, true);
+  public List<ResultElem<String,Integer>> lookupDistinct(String word,
+                                                         Integer maxDist) {
+    return lookup(word, maxDist, true);
   }
   /* +***************************************************************** */
   private List<ResultElem<String,Integer>> lookup(String word,
-                                                 boolean distinct)
+                                                  int maxDist,
+                                                  boolean distinct)
   {
     List<ResultElem<String,Integer>> result = newResultList();
 
     List<ResultElem<String,Integer>> similarWords;
     if( distinct ) {
-      similarWords = dict.lookupDistinct(word);
+      similarWords = dict.lookupDistinct(word, maxDist);
     } else {
-      similarWords = dict.lookup(word);
+      similarWords = dict.lookup(word, maxDist);
     }
     int bestWeight = convertToWeights(similarWords, result);
 
@@ -231,7 +236,9 @@ public class Didyoumean {
     
     for(ResultElem<String, Integer> e : in) {
       int weight = weights.get(e.value);
-      if( weight>bestWeight ) bestWeight = weight;
+      if( weight>bestWeight ) {
+        bestWeight = weight;
+      }
       ResultElem<String, Integer> newElem = newResultElem(e.value, weight);
       out.add(newElem);
     }
@@ -244,7 +251,9 @@ public class Didyoumean {
   {
     List<ResultElem<String, Integer>> result = newResultList();
     for(ResultElem<String,Integer> elem : candidates) {
-      if( elem.d==bestWeight ) result.add(elem);
+      if( elem.d==bestWeight ) {
+        result.add(elem);
+      }
     }
     return result;
   }
@@ -260,32 +269,4 @@ public class Didyoumean {
     return dict.getClass();
   }
   /* +***************************************************************** */
-  /**
-   * <p>
-   * for ad-hoc testing only. First argument is a file to be used with
-   * {@link #addFile addFile}, further arguments are terms to be looked up.
-   * </p>
-   */
-  public static void main(String[] argv) throws Exception {
-    IntMetric<String> metric =
-        new LevenshteinMetric(CostFunctions.caseIgnore);
-    Didyoumean dym = instanceNgramDict(3, metric, 2);
-    // Didyoumean dym = instanceBKTree(metric, 2);
-    long start = System.currentTimeMillis();
-    dym.addFile(argv[0], ':', "UTF-8");
-    long end = System.currentTimeMillis();
-    System.out.printf("reading dict took %dms, now starting lookup%n", end
-        - start);
-    start = System.currentTimeMillis();
-    int count = 0;
-    for(int i = 1; i < argv.length; i++) {
-      List<ResultElem<String, Integer>> res = dym.lookup(argv[i]);
-      count = count + res.size();
-      System.out.printf("%s->%s%n", argv[i], res);
-    }
-    end = System.currentTimeMillis();
-    long dt = end - start;
-    System.out.printf("dt=%dms, avg=%.2fms%n", dt, (double) dt
-        / (argv.length - 1));
-  }
 }

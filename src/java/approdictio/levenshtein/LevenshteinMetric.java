@@ -62,10 +62,12 @@ public class LevenshteinMetric implements IntMetric<String> {
     int n = v2.length() + 1;
     int[][] d = new int[m][n];
 
-    for(int i = 0; i < m; i++)
+    for(int i = 0; i < m; i++) {
       d[i][0] = i;
-    for(int i = 1; i < n; i++)
+    }
+    for(int i = 1; i < n; i++) {
       d[0][i] = i;
+    }
 
     for(int i = 1; i < m; i++) {
       char ch1 = v1.charAt(i - 1);
@@ -82,14 +84,4 @@ public class LevenshteinMetric implements IntMetric<String> {
     return d[m - 1][n - 1];
   }
   // +********************************************************************
-  /**
-   * <p>for testing only.</p>
-   */
-  public static void main(String[] argv) {
-    LevenshteinMetric lm = new LevenshteinMetric(CostFunctions.caseIgnore);
-    for(int i = 0; i < argv.length - 1; i += 2) {
-      int d = lm.d(argv[i], argv[i + 1]);
-      System.out.printf("%s--%s: %d%n", argv[i], argv[i + 1], d);
-    }
-  }
 }

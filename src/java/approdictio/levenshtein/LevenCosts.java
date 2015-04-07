@@ -28,7 +28,7 @@ public interface LevenCosts {
   /**
    * <p>
    * must provide the cost of inserting or deleting a given character. Insertion
-   * and deletion have to be identical to keep the distance metric symmetic.
+   * and deletion have to be identical to keep the distance metric symmetric.
    * </p>
    */
   int insdelCost(char c);

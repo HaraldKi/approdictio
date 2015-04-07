@@ -1,19 +1,18 @@
 <?xml version="1.0"?>
 <project name="Approdictio" default="compile" basedir=".">
 
-  <!-- To get this going, emma.jar must be in the ant classpath. One
-  way to have this is to put it into ${user.home}/.ant/lib -->
-  <taskdef resource="emma_ant.properties" />
-
+  <property name="release" value="41"/>
+  
   <target name="compile" description="compiles java classes">
-    <mkdir dir="Classes"/>
+    <mkdir dir="build/classes"/>
     <javac srcdir="src/java"
-      destdir="Classes"
-      source="1.5"
+      destdir="build/classes"
+      source="1.7"
       listfiles="yes"
       fork="false"
       debug="true"
       deprecation="true"
+      includeantruntime="false"
       >
       <compilerarg value="-Xlint:unchecked"/>
       <patternset includes="approdictio/**/*.java"
@@ -21,105 +20,83 @@
     </javac>
   </target>
 
-  <target name="javadoc" depends="svnrevision"
+  <target name="javadoc" depends=""
     description="run javadoc to create api docs">
     <javadoc sourcepath="src/java"
       packagenames="*"
-      destdir="dist/ApprodictioDoc"
+      destdir="build/ApprodictioDoc"
       windowtitle="Approximate Lookup Dictionaries"
-      header="&lt;span class='approheader'&gt;Approdictio v${svn.revision}&lt;/span&gt;"
+      header="&lt;span class='approheader'&gt;Approdictio v${release}&lt;/span&gt;"
       overview="src/java/overview.html"
-      stylesheetfile="files/stylesheet.css"
+
       Bottom="&lt;div class=&quot;approlink&quot;>download: &lt;a
       href='https://developer.berlios.de/project/showfiles.php?group_id=10293' target='_top'>developer.berlios.de&lt;/a>&lt;br/>home page: &lt;a href=&quot;http://approdictio.berlios.de/&quot; target='_top'>approdictio.berlios.de&lt;/a>&lt;/div>"
       >
     </javadoc>
   </target> 
   
-  <target name="jar" depends="cleanClasses, compile, svnrevision">
-    <mkdir dir="dist"/>
-    <jar destfile="dist/Approdictio-${svn.revision}.jar" basedir="Classes"
+  <target name="jar" depends="cleanClasses, compile">
+    <mkdir dir="build"/>
+    <jar destfile="build/Approdictio-${release}.jar" basedir="Classes"
       includes="**/*.class"
       excludes="**/Test*.class">
       <manifest>
-	<attribute name="svn-revision" value="${svn.revision}" />
+	<attribute name="release" value="${release}" />
 	<attribute name="timestamp" value="${time.now}" />
       </manifest>
     </jar>
   </target>
 
   <target name="docjar" depends="cleanDoc, javadoc">
-    <mkdir dir="dist"/>
-    <zip destfile="dist/ApprodictioDoc-${svn.revision}.zip"
-      basedir="dist" includes="ApprodictioDoc/**">
+    <mkdir dir="build"/>
+    <zip destfile="build/ApprodictioDoc-${release}.zip"
+      basedir="build" includes="ApprodictioDoc/**">
     </zip>
   </target>
 
   <target name="upload" depends="jar, docjar"
     description="upload jars for publishing to berlios">
-    <upload file="dist/Approdictio-${svn.revision}.jar"/>
-    <upload file="dist/ApprodictioDoc-${svn.revision}.zip"/>
-  </target>
-
-  <target name="homepage" 
-    description="publish the homepage to berlios"
-    depends="javadoc, coverage">
-    <exec executable="scp">
-      <arg value="files/index.html"/>
-      <arg value="files/index.css"/>
-      <arg value="LICENSE" />
-      <arg value="pifpafpuf@shell.berlios.de:approdictio/htdocs" />
-    </exec>
-    <exec executable="rsync" spawn="true">
-      <arg value="--delete"/>
-      <arg value="-az"/>
-      <arg value="dist/ApprodictioDoc/" />
-      <arg value="pifpafpuf@shell.berlios.de:approdictio/htdocs/api" />
-    </exec>
-    <exec executable="rsync" spawn="true">
-      <arg value="--delete"/>
-      <arg value="-az"/>
-      <arg value="dist/covereport/" />
-      <arg value="pifpafpuf@shell.berlios.de:approdictio/htdocs/covereport" />
-    </exec>
+    <upload file="build/Approdictio-${release}.jar"/>
+    <upload file="build/ApprodictioDoc-${release}.zip"/>
   </target>
 
   <target name="cleanClasses">
-    <delete dir="Classes/approdictio" />
+    <delete dir="build/classes" />
   </target>
   <target name="cleanDoc">
-    <delete dir="dist/ApprodictioDoc"/>
+    <delete dir="build/ApprodictioDoc"/>
   </target>
 
   <target name="compiletests">
     <javac srcdir="testsrc"
-      destdir="Classes"
+      destdir="build/classes"
       source="1.5"
       listfiles="no"
       fork="false"
       debug="true"
       deprecation="true"
+      includeantruntime="true"
       >
       <compilerarg value="-Xlint:unchecked"/>
       <patternset includes="**/*.java" />
     </javac>
   </target>
 
-  <target name="unitest" depends="compile, compiletests, emmainstr"
+  <target name="unitest" depends="compile, compiletests"
     description="run unit test with junit4">
 
     <junit fork="yes"> <!-- printsummary="withOutAndErr" -->
-      <jvmarg value="-Demma.coverage.out.file=dist/coverage/emmadata.ec"/>
+      <jvmarg value="-Demma.coverage.out.file=build/coverage/emmadata.ec"/>
       <classpath>
 	<pathelement location="${user.home}/.ant/lib/emma.jar"/>
-	<pathelement location="dist/coverage/Classes"/>
-	<pathelement location="Classes"/>
+	<pathelement location="build/coverage/Classes"/>
+	<pathelement location="build/classes"/>
       </classpath>
 
       <formatter type="plain" usefile="false"/>
 
       <batchtest fork="yes">
-	<fileset dir="Classes">
+	<fileset dir="build/classes">
 	  <include name="**/Test*.class"/>
 	  <exclude name="**/*$*.class"/>
 	</fileset>
@@ -128,11 +105,11 @@
   </target>
 
   <target name="emmainstr">
-    <delete dir="dist/coverage/Classes"/>
+    <delete dir="build/coverage/Classes"/>
     <emma verbosity="quiet">
       <instr instrpath="Classes"
-	destdir="dist/coverage/Classes"
-	metadatafile="dist/coverage/emmadata.em"
+	destdir="build/coverage/Classes"
+	metadatafile="build/coverage/emmadata.em"
 	merge="false">
 	<filter excludes="*.Test*"/>
       </instr>
@@ -147,41 +124,14 @@
 	sort="+line,+block,+method"
 	metrics="line:95"
 	>
-	<fileset dir="dist/coverage">
+	<fileset dir="build/coverage">
 	  <!-- find emmadata.ec. and emmadata.em -->
 	  <include name="emmadata.*" />
 	</fileset>
 	
-	<html outfile="dist/covereport/coverage.html" />
+	<html outfile="build/covereport/coverage.html" />
       </report>
     </emma>
-  </target>
-
-  <!-- Get subversion revision and whether the working dir is dirty
-  with regard to the repository. (Since subversion tasks are still not
-  standard with ant, use exec -->
-  <target name="svnrevision">
-    <exec executable="svn" output="dist/svnstatus">
-      <arg value="status"/> <arg value="-u"/>
-    </exec>
-    <!-- set svn.clean to "." if svnstatus has only one line -->
-    <loadfile property="svn.clean" srcFile="dist/svnstatus">
-      <filterchain>
-	<replaceregex pattern=".*" replace="."/>
-	<striplinebreaks/>
-      </filterchain>
-    </loadfile>
-
-    <loadfile property="svn.revid" srcFile="dist/svnstatus">
-      <filterchain>
-	<tailfilter lines="1"/>
-	<replaceregex pattern=".[^0-9]*" replace=""/>
-	<striplinebreaks/>
-      </filterchain>
-    </loadfile>
-    <condition property="svn.revision" value="${svn.revid}" else="dirty">
-      <equals arg1="${svn.clean}" arg2="." />
-    </condition>
   </target>
 
   <tstamp>
@@ -200,4 +150,9 @@
   <target name="e">
     <echoproperties/>
   </target>
+
+  <!-- try out sonar -->
+  <taskdef uri="antlib:org.sonar.ant" resource="org/sonar/ant/antlib.xml">
+    <classpath path="${user.home}/tmp/sonar-3.0/sonar-ant-task-1.3.jar"/>
+  </taskdef>
 </project>

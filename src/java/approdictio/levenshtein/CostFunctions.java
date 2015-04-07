@@ -21,7 +21,7 @@ package approdictio.levenshtein;
  * @author harald
  * 
  */
-public class CostFunctions {
+public final class CostFunctions {
   // Nothing to instantiate here.
   private CostFunctions() {}
 
@@ -39,8 +39,11 @@ public class CostFunctions {
     }
 
     public int substCost(char c1, char c2) {
-      if( Character.toLowerCase(c1) == Character.toLowerCase(c2) ) return 0;
-      return 1;
+      if( Character.toLowerCase(c1) == Character.toLowerCase(c2) ) {
+        return 0;
+      } else {
+        return 1;
+      }
     }
   };
 

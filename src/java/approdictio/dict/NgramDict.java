@@ -13,16 +13,15 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 package approdictio.dict;
 
+import static approdictio.dict.Util.newResultElem;
+import static approdictio.dict.Util.newResultList;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import approdictio.levenshtein.CostFunctions;
-import approdictio.levenshtein.LevenshteinMetric;
-import static approdictio.dict.Util.*;
 
 /**
  * <p>
@@ -52,14 +51,10 @@ import static approdictio.dict.Util.*;
 public class NgramDict
     implements Dictionary<String,Integer>
 {
+  private static final char NOCHAR = '\u00B7';
 
   private final int ngramLen;
-
-  private final char noChar = '\u00B7';
-
   private final IntMetric<String> metric;
-
-  private final int maxDist;
 
   // an index mapping ngrams to their strings.
   private final Map<String,Set<String>> index =
@@ -73,20 +68,16 @@ public class NgramDict
    * @param ngramLen is the length of the n-grams use, must be greater zero
    * @param metric is the metric used to compare strings <em>after</em>
    *        candidates were retrieved using ngram-metric.
-   * @param maxDist is used as a cutoff when retrieving candidates according
-   *        to ngram-metric (2 is a good candidate for most cases)
-   * 
    * @throws IllegalArgumentException if {@code ngramLen} is not greater
    *         zero.
    */
-  public NgramDict(int ngramLen, IntMetric<String> metric, int maxDist) {
+  public NgramDict(int ngramLen, IntMetric<String> metric) {
     if( ngramLen<1 ) {
       throw new IllegalArgumentException("n must be greater zero "
           +" but is "+ngramLen);
     }
     this.ngramLen = ngramLen;
     this.metric = metric;
-    this.maxDist = maxDist;
   }
   /* +***************************************************************** */
   public void add(String value) {
@@ -94,11 +85,11 @@ public class NgramDict
     for(String ngram : ngrams(value)) {
       Set<String> values = index.get(ngram);
       if( values==null ) {
-        index.put(ngram, values = new HashSet<String>());
+        values = new HashSet<String>();
+        index.put(ngram, values);
       }
       values.add(value);
     }
-    // System.out.printf("%s->%s%n", value, ngrams);
   }
   /* +***************************************************************** */
   private Set<String> ngrams(String s) {
@@ -116,7 +107,7 @@ public class NgramDict
   private char[] padWithNoChar(String s) {
     int halfNgramRoundedUp = (ngramLen+1)/2;
     char[] result = new char[s.length()+2*halfNgramRoundedUp];
-    Arrays.fill(result, noChar);
+    Arrays.fill(result, NOCHAR);
     s.getChars(0, s.length(), result, halfNgramRoundedUp);
     return result;
   }
@@ -144,21 +135,28 @@ public class NgramDict
     // that value
     for(String ngram : queryNgrams) {
       Set<String> terms = index.get(ngram);
-      if( terms==null ) continue;
+      if( terms==null ) {
+        continue;
+      }
 
       for(String termFound : terms) {
-        if( distinct && termFound.equals(queryValue) ) continue;
-        if( termsSeen.contains(termFound) ) continue;
+        if( (distinct && termFound.equals(queryValue)) 
+            || termsSeen.contains(termFound) ) {
+          continue;
+        }
         termsSeen.add(termFound);
 
         int symDist = symmetricDistance(queryNgrams, ngrams(termFound));
 
         // drop bad candidates as early as possible
-        if( !eligible(symDist, minDistSeen) ) continue;
+        if( !eligible(symDist, minDistSeen) ) {
+          continue;
+        }
 
-        if( symDist<minDistSeen ) minDistSeen = symDist;
+        if( symDist<minDistSeen ) {
+          minDistSeen = symDist;
+        }
         result.add(newResultElem(termFound, symDist));
-        // System.out.printf("++++ added %s%n", termFound);
       }
     }
     result = filterEligible(result, minDistSeen);
@@ -174,7 +172,9 @@ public class NgramDict
         newResultList(candidates.size());
 
     for(ResultElem<String,Integer> cand : candidates) {
-      if( eligible(cand.d, minDistSeen) ) result.add(cand);
+      if( eligible(cand.d, minDistSeen) ) {
+        result.add(cand);
+      }
     }
     return result;
   }
@@ -201,8 +201,9 @@ public class NgramDict
    *         dictionary is updated while a lookup tries to find a query
    *         value.
    */
-  public List<ResultElem<String,Integer>> lookup(String queryValue) {
-    return lookup(queryValue, false);
+  public List<ResultElem<String,Integer>> lookup(String queryValue,
+                                                 Integer maxDist) {
+    return lookup(queryValue, maxDist, false);
   }
   /*+******************************************************************/
   /**
@@ -210,20 +211,22 @@ public class NgramDict
    *         dictionary is updated while a lookup tries to find a query
    *         value.
    */
-  public List<ResultElem<String,Integer>> lookupDistinct(String queryValue) {
-    return lookup(queryValue, true);
+  public List<ResultElem<String,Integer>> lookupDistinct(String queryValue,
+                                                         Integer maxDist) {
+    return lookup(queryValue, maxDist, true);
   }
   /*+******************************************************************/
   private List<ResultElem<String,Integer>> lookup(String queryValue,
-                                                   boolean distinct)
+                                                  int maxDist,
+                                                  boolean distinct)
     {
     List<ResultElem<String,Integer>> tmp =
         getNgramSimilar(queryValue, distinct);
     List<ResultElem<String,Integer>> result = newResultList();
-    for(ResultElem<String,Integer> re : curate(queryValue, tmp)) {
+    for(ResultElem<String,Integer> re : curate(queryValue, maxDist, tmp)) {
       result.add(re);
     }
-    return curate(queryValue, tmp);
+    return curate(queryValue, maxDist, tmp);
   }
   /* +***************************************************************** */
   /**
@@ -247,9 +250,9 @@ public class NgramDict
    *         trigram similarities and is sorted in ascending order of the
    *         metric distance values.
    */
-  private List<ResultElem<String,Integer>> curate(
-                                                  String query,
-                                                  List<ResultElem<String,Integer>> candidates)
+  private List<ResultElem<String,Integer>> 
+  curate(String query, int maxDist,
+         List<ResultElem<String,Integer>> candidates)
   {
     List<ResultElem<String,Integer>> result =
         newResultList(1+candidates.size()/2);
@@ -260,7 +263,9 @@ public class NgramDict
       int d = metric.d(query, re.value);
 
       // drop insufficient candidates early
-      if( d>maxDist||d>minDistSeen ) continue;
+      if( d>maxDist||d>minDistSeen ) {
+        continue;
+      }
 
       minDistSeen = d;
       result.add(newResultElem(re.value, d));
@@ -269,46 +274,19 @@ public class NgramDict
     return filterBest(result, minDistSeen);
   }
   /* +***************************************************************** */
-  private List<ResultElem<String,Integer>> filterBest(
-                                                      List<ResultElem<String,Integer>> candidates,
-                                                      int bestDist)
+  private List<ResultElem<String,Integer>> 
+  filterBest(List<ResultElem<String,Integer>> candidates,
+             int bestDist)
   {
     List<ResultElem<String,Integer>> result =
         newResultList(candidates.size());
 
     for(ResultElem<String,Integer> cand : candidates) {
-      if( cand.d==bestDist ) result.add(cand);
+      if( cand.d==bestDist ) {
+        result.add(cand);
+      }
     }
     return result;
   }
   /* +***************************************************************** */
-  /**
-   * <p>
-   * for testing purposes only.
-   * </p>
-   * 
-   * @param argv
-   */
-  public static void main(String[] argv) throws Exception {
-    IntMetric<String> metric =
-        new LevenshteinMetric(CostFunctions.caseIgnore);
-    NgramDict t = new NgramDict(4, metric, 2);
-    Util.readFileDict(argv[0], t);
-    System.out.println("starting lookup");
-    long start = System.currentTimeMillis();
-    int r = 0;
-    for(int i = 1; i<argv.length; i++) {
-      List<ResultElem<String,Integer>> l = t.lookup(argv[i]);
-      r = r+l.size();
-      if( i%1000==0 ) System.out.println(i);
-      /*
-       * * / System.out.printf("%s -->", argv[i]); for(ResultElem<String,
-       * Integer> e : l) { System.out.printf(" %s", e); }
-       * System.out.println(); /*
-       */
-    }
-    long end = System.currentTimeMillis();
-    double avg = ((double)(end-start))/(double)(argv.length-1);
-    System.out.printf("avg lookup: %.3fms%n", avg);
-  }
 }

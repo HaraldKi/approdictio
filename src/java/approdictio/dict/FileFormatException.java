@@ -7,13 +7,29 @@ package approdictio.dict;
  */
 public class FileFormatException extends Exception {
   private final int lineNo;
-  public FileFormatException(String msg, int lineNo) {
-    super(String.format("%d: %s", lineNo, msg));
+  private final String msg;
+  private String filename = "stream without name";
+  public FileFormatException(String msg, int lineNo, Throwable e) {
+    this.msg = msg;
     this.lineNo = lineNo;
+    if (e!=null) {
+      initCause(e);
+    }
+  }
+  public FileFormatException(String msg, int lineNo) {
+    this(msg, lineNo, null);
+  }
+  public void setFilename(String filename) {
+    this.filename = filename;
   }
   /**
    * <p>the number of the line with the error</p>
    * @return the error line number
    */
   public int getLineNo() { return lineNo; }
+  public String getFilename() { return filename; }
+  @Override
+  public String getMessage() {
+    return String.format("%s(%s): %s", filename, lineNo, msg);
+  }
 }
