@@ -12,4 +12,5 @@
       <artifact name="junit" type="jar"/>
     </dependency>
   </dependencies>
+
 </ivy-module>
