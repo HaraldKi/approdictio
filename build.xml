@@ -1,8 +1,24 @@
 <?xml version="1.0"?>
 <project name="Approdictio" default="compile" basedir=".">
+ <!-- 
+      Run 'ant ivy' first to download dependencies.
 
-  <property name="release" value="41"/>
-  
+      If you don't have ivy, you need to fetch the dependencies in
+      ivy.xml by hand and place the *.jar files into libs/build.      
+ -->
+
+  <property name="release" value="not-yet-implemented-to-read-from-ivy.xml"/>
+
+  <target name="ivy" xmlns:ivy="antlib:org.apache.ivy.ant">
+    <ivy:configure settingsId="ivyconf" file="./ivysettings.xml"/>
+    <ivy:resolve />
+    <ivy:retrieve pattern="libs/build/[artifact]-[revision].[ext]" />
+  </target>
+
+  <path id="test-classpath">
+    <fileset dir="libs/build" includes="**/*.jar"/>
+  </path>
+
   <target name="compile" description="compiles java classes">
     <mkdir dir="build/classes"/>
     <javac srcdir="src/java"
@@ -70,7 +86,8 @@
   <target name="compiletests">
     <javac srcdir="testsrc"
       destdir="build/classes"
-      source="1.5"
+      classpathref="test-classpath"
+      source="1.6"
       listfiles="no"
       fork="false"
       debug="true"
@@ -86,10 +103,8 @@
     description="run unit test with junit4">
 
     <junit fork="yes"> <!-- printsummary="withOutAndErr" -->
-      <jvmarg value="-Demma.coverage.out.file=build/coverage/emmadata.ec"/>
       <classpath>
-	<pathelement location="${user.home}/.ant/lib/emma.jar"/>
-	<pathelement location="build/coverage/Classes"/>
+	<path refid="test-classpath"/>
 	<pathelement location="build/classes"/>
       </classpath>
 
@@ -102,36 +117,6 @@
 	</fileset>
       </batchtest>
     </junit>
-  </target>
-
-  <target name="emmainstr">
-    <delete dir="build/coverage/Classes"/>
-    <emma verbosity="quiet">
-      <instr instrpath="Classes"
-	destdir="build/coverage/Classes"
-	metadatafile="build/coverage/emmadata.em"
-	merge="false">
-	<filter excludes="*.Test*"/>
-      </instr>
-    </emma>
-  </target>
-
-  <target name="coverage" depends="unitest"
-    description="run unit test collecting coverage data and produce a report">
-    <emma verbosity="quiet">
-      <report sourcepath="src/java" 
-	columns="name,line,block,method"
-	sort="+line,+block,+method"
-	metrics="line:95"
-	>
-	<fileset dir="build/coverage">
-	  <!-- find emmadata.ec. and emmadata.em -->
-	  <include name="emmadata.*" />
-	</fileset>
-	
-	<html outfile="build/covereport/coverage.html" />
-      </report>
-    </emma>
   </target>
 
   <tstamp>
@@ -151,8 +136,4 @@
     <echoproperties/>
   </target>
 
-  <!-- try out sonar -->
-  <taskdef uri="antlib:org.sonar.ant" resource="org/sonar/ant/antlib.xml">
-    <classpath path="${user.home}/tmp/sonar-3.0/sonar-ant-task-1.3.jar"/>
-  </taskdef>
 </project>
