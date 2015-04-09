@@ -30,7 +30,8 @@ public final class BKStableLookup<W> implements Iterator<W> {
   private final Comparator<W> order;
   private final IntMetric<W> metric;
   private W prepared = null;
-
+  private long computeMaxMillis= Long.MAX_VALUE;
+      
   /**
    * creates an iterator to extract values from the given {@link BKTree} that
    * have at most {@code maxDist} distance to the {@code queryValue}
@@ -48,9 +49,9 @@ public final class BKStableLookup<W> implements Iterator<W> {
    *        each other.
    */
   public BKStableLookup(BKTree<W> bkTree,
-                            W queryValue, 
-                            int maxDist,
-                            Comparator<W> order) {
+                        W queryValue, 
+                        int maxDist,
+                        Comparator<W> order) {
     this.queryValue = queryValue;
     this.order = order;
     this.maxDist = maxDist;
@@ -60,7 +61,30 @@ public final class BKStableLookup<W> implements Iterator<W> {
     }
     this.metric = bkTree.getMetric();
   }
-
+  /*+**********************************************************************/
+  /**
+   * restrict the maximum compute time for all {@link #next} calls to the given
+   * timeout. This is wall time, not CPU cycle time. After the timeout,
+   * {@link #hasNext} will return false and calls to {@link #next} will throw an
+   * exception. If a call to {@code hasNext} returns true, it is guaranteed,
+   * however, that one more call to {@code next} succeeds.
+   * 
+   * <p>
+   * Once the time ran out, this method may not be called again to reset the
+   * time, since the internal iteration state is then undefined.</p>
+   * 
+   * @throws IllegalStateException
+   *           if called after the time ran out during a {@code next} or
+   *           {@code hasNext} call.
+   */
+  public void setComputeTimeoutMillis(long deltaFromNow){
+    if (computeMaxMillis<=0) {
+      throw new IllegalStateException("reset of timeout after it triggered "
+          + "not possible");
+    }
+    computeMaxMillis = System.currentTimeMillis()+deltaFromNow;
+  }
+  /*+**********************************************************************/
   private final Comparator<BKNode<W>> 
   valueComparator = new Comparator<BKNode<W>>() {
     @Override
@@ -92,10 +116,10 @@ public final class BKStableLookup<W> implements Iterator<W> {
       return prepared;
     }
     
-    while (!toInspect.isEmpty()) {
+    while (computeTimeLeft() && !toInspect.isEmpty()) {
       BKNode<W> node = toInspect.poll();
       prepared = node.getValue();
-      insertChildren(toInspect, node);
+      queueChildren(node);
       //System.out.println("checking "+prepared);
       int d = metric.d(prepared, queryValue);
       if (d<=maxDist) {
@@ -105,8 +129,16 @@ public final class BKStableLookup<W> implements Iterator<W> {
     return null;
   }
   
+  private boolean computeTimeLeft() {
+    if (System.currentTimeMillis()>=computeMaxMillis) {
+      computeMaxMillis = 0;
+      return false;
+    }
+    return true;
+  }
+  
   private void 
-  insertChildren(PriorityQueue<BKNode<W>> toInspect,  BKNode<W> node) {
+  queueChildren(BKNode<W> node) {
     LinkTable<W> children = node.getChildren();
     int l = children.size();
     for(int i=0; i<l; i++) {

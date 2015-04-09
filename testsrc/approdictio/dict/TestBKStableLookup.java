@@ -19,8 +19,8 @@ import approdictio.levenshtein.LevenshteinMetric;
 public class TestBKStableLookup {
   private BKTree<WeightedString> tree;
   
-  private static IntMetric<WeightedString> metric = 
-    new IntMetric<WeightedString>() {
+  private static IntMetric<WeightedString> 
+  metric = new IntMetric<WeightedString>() {
     private LevenshteinMetric lm = new LevenshteinMetric();
     @Override
     public int d(WeightedString v1, WeightedString v2) {
@@ -38,21 +38,6 @@ public class TestBKStableLookup {
     }
   };
 
-  private static final class WeightedString {
-    public int weight;
-    public final String word;
-    public WeightedString(String word, int weight) {
-      this.word = word;
-      this.weight = weight;
-    }
-    public String getWord() {
-      return word;
-    }
-    public String toString() {
-      return word+":"+weight;
-    }
-  }
-  
   private static WeightedString ws(String word) {
     return new WeightedString(word, word.length());
   }
@@ -111,6 +96,32 @@ public class TestBKStableLookup {
   }
   
   @Test
+  public void testTimeout() {
+    long birthOfEinstein = 18790314L;
+    int N = 100000;
+    WeightedString[] wwords = genZeroToN(N, new Random(birthOfEinstein));
+    for(int i=0; i<N; i++) {
+      tree.add(wwords[i]);
+    }
+    int N1 = N/2;
+    
+    BKStableLookup<WeightedString> bkosl =
+        new BKStableLookup<WeightedString>(tree, wwords[N1], 1, weightCompare);
+    int count = 0;
+
+    while (bkosl.hasNext()) {
+      count += 1;
+      bkosl.next();
+    }
+    assertTrue("count>3", count>3);
+    
+    bkosl =
+        new BKStableLookup<WeightedString>(tree, wwords[N1], 1, weightCompare);
+    bkosl.next();
+    bkosl.setComputeTimeoutMillis(0);
+    assertFalse(bkosl.hasNext());
+  }
+  @Test
   public void testRandomVariationWeight() {
     long birthOfWernerHeisenberg = 19011205L;
     Random rand = new Random(birthOfWernerHeisenberg);
@@ -134,9 +145,8 @@ public class TestBKStableLookup {
       = findResultsTheHardWay(wwords, wwords[i], maxDist);
     
       BKStableLookup<WeightedString> bkosl =
-        new BKStableLookup<WeightedString>(tree, wwords[i],
-                                                maxDist,
-                                                weightCompare);
+        new BKStableLookup<WeightedString>(tree, wwords[i], maxDist,
+                                           weightCompare);
       for(int k=0; k<hardResults.size(); k++) {
         assertEquals(hardResults.get(k), bkosl.next());
       }
@@ -163,14 +173,14 @@ public class TestBKStableLookup {
     Set<Integer> used = new HashSet<Integer>(2*N);
     WeightedString[] result = new WeightedString[N];
     for(int i=0; i<N; i++) {
-      int weight = uniqueWeight(used, rand, 100*N);
+      int weight = uniqueWeight(used, rand);
       result[i] = new WeightedString(String.format(f, i), weight);
     }
     Arrays.sort(result, weightCompare);
     return result;
   }
 
-  private int uniqueWeight(Set<Integer> used, Random rand, int maxWeight) {
+  private int uniqueWeight(Set<Integer> used, Random rand) {
     int newRand;
     do {
       newRand = rand.nextInt();
@@ -178,4 +188,20 @@ public class TestBKStableLookup {
     used.add(newRand);
     return newRand;
   }
+  /*+**********************************************************************/
+  private static final class WeightedString {
+    public int weight;
+    public final String word;
+    public WeightedString(String word, int weight) {
+      this.word = word;
+      this.weight = weight;
+    }
+    public String getWord() {
+      return word;
+    }
+    public String toString() {
+      return word+":"+weight;
+    }
+  }
+  
 }

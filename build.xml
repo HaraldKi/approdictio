@@ -7,8 +7,6 @@
       ivy.xml by hand and place the *.jar files into libs/build.      
  -->
 
-  <property name="release" value="not-yet-implemented-to-read-from-ivy.xml"/>
-
   <target name="ivy" xmlns:ivy="antlib:org.apache.ivy.ant">
     <ivy:configure settingsId="ivyconf" file="./ivysettings.xml"/>
     <ivy:resolve />
@@ -36,7 +34,7 @@
     </javac>
   </target>
 
-  <target name="javadoc" depends=""
+  <target name="javadoc" depends="ivyvalues"
     description="run javadoc to create api docs">
     <javadoc sourcepath="src/java"
       packagenames="*"
@@ -46,16 +44,17 @@
       overview="src/java/overview.html"
 
       Bottom="&lt;div class=&quot;approlink&quot;>download: &lt;a
-      href='https://developer.berlios.de/project/showfiles.php?group_id=10293' target='_top'>developer.berlios.de&lt;/a>&lt;br/>home page: &lt;a href=&quot;http://approdictio.berlios.de/&quot; target='_top'>approdictio.berlios.de&lt;/a>&lt;/div>"
+      href='https://github.com/HaraldKi/approdictio/releases' target='_top'>github.com/HaraldKi/approdictio/releases&lt;/a>&lt;br/>home page: &lt;a href=&quot;https://github.com/HaraldKi/approdictio&quot; target='_top'>github.com/HaraldKi/approdictio&lt;/a>&lt;/div>"
       >
     </javadoc>
   </target> 
   
-  <target name="jar" depends="cleanClasses, compile">
+  <target name="jar" depends="cleanClasses, compile, ivyvalues">
     <mkdir dir="build"/>
-    <jar destfile="build/Approdictio-${release}.jar" basedir="Classes"
-      includes="**/*.class"
-      excludes="**/Test*.class">
+    <jar destfile="build/Approdictio-${release}.jar" 
+	 basedir="build/classes"
+	 includes="**/*.class"
+	 excludes="**/Test*.class">
       <manifest>
 	<attribute name="release" value="${release}" />
 	<attribute name="timestamp" value="${time.now}" />
@@ -70,10 +69,8 @@
     </zip>
   </target>
 
-  <target name="upload" depends="jar, docjar"
-    description="upload jars for publishing to berlios">
-    <upload file="build/Approdictio-${release}.jar"/>
-    <upload file="build/ApprodictioDoc-${release}.zip"/>
+  <target name="release" depends="jar, docjar"
+    description="create release for upload">
   </target>
 
   <target name="cleanClasses">
@@ -119,18 +116,21 @@
     </junit>
   </target>
 
+  <target name="ivyvalues">
+    <loadfile property="release" srcFile="ivy.xml">
+      <filterchain>
+	<linecontainsregexp>
+	  <regexp pattern="revision=.[0-9]+"/>
+	</linecontainsregexp>
+	<replaceregex pattern=".*revision=.([0-9]+).*"
+		      replace="\1"/>
+	<striplinebreaks/>
+      </filterchain>
+    </loadfile>
+  </target>
   <tstamp>
     <format property="time.now" pattern="yyyy-MM-dd hh:mm:ss"/>
   </tstamp>
-
-  <macrodef name="upload" description="upload to berlios incoming dir">
-    <attribute name="file"/>
-    <sequential>
-      <exec executable="lftp" inputstring="cd incoming;put @{file}">
-	<arg line="-u anonymous,pifpafpuf@gmx.de ftp.berlios.de"/>
-      </exec>
-    </sequential>
-  </macrodef>
 
   <target name="e">
     <echoproperties/>
