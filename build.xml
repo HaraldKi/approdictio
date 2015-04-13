@@ -21,7 +21,8 @@
     <mkdir dir="build/classes"/>
     <javac srcdir="src/java"
       destdir="build/classes"
-      source="1.7"
+      source="1.6"
+      target="1.6"
       listfiles="yes"
       fork="false"
       debug="true"

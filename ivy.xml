@@ -5,7 +5,7 @@
   xmlns:e="http://ant.apache.org/ivy/extra"
   xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
   
-  <info organisation="other" module="approdictio" revision="41"/>
+  <info organisation="other" module="approdictio" revision="42"/>
 
   <dependencies>
     <dependency org="junit" name="junit" transitive="true" rev="4.11">
